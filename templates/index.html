@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Doser UI</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #111827;
+      color: #e5e7eb;
+      min-height: 100vh;
+    }
+
+    header {
+      padding: 0.9rem 1.5rem;
+      border-bottom: 1px solid #1f2937;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    header h1 { font-size: 1.1rem; font-weight: 600; color: #38bdf8; letter-spacing: 0.02em; }
+
+    #mqtt-status {
+      font-size: 0.78rem;
+      padding: 0.25rem 0.6rem;
+      border-radius: 999px;
+      background: #1f2937;
+      color: #9ca3af;
+    }
+    #mqtt-status.connected { background: #14532d; color: #4ade80; }
+    #mqtt-status.disconnected { background: #450a0a; color: #f87171; }
+
+    main {
+      max-width: 960px;
+      margin: 1.5rem auto;
+      padding: 0 1rem;
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      gap: 1.2rem;
+      align-items: start;
+    }
+
+    .card {
+      background: #1f2937;
+      border: 1px solid #374151;
+      border-radius: 10px;
+      padding: 1.2rem;
+    }
+    .card-title {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #6b7280;
+      margin-bottom: 1rem;
+    }
+
+    /* System selector */
+    .system-selector { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1.1rem; }
+    .system-btn {
+      padding: 0.35rem 0.9rem;
+      border-radius: 6px;
+      border: 1px solid #374151;
+      background: #111827;
+      color: #9ca3af;
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+    .system-btn.active { border-color: #38bdf8; color: #38bdf8; background: #0c2b40; }
+
+    /* Form fields */
+    .field { margin-bottom: 0.85rem; }
+    .field label { display: block; font-size: 0.78rem; color: #9ca3af; margin-bottom: 0.3rem; }
+    .field input, .field select {
+      width: 100%;
+      padding: 0.5rem 0.65rem;
+      background: #111827;
+      border: 1px solid #374151;
+      border-radius: 6px;
+      color: #e5e7eb;
+      font-size: 0.9rem;
+    }
+    .field input:focus, .field select:focus {
+      outline: none;
+      border-color: #38bdf8;
+    }
+    .field select option { background: #1f2937; }
+
+    /* Buttons */
+    .actions { display: flex; gap: 0.6rem; margin-top: 1.1rem; flex-wrap: wrap; }
+    button {
+      padding: 0.55rem 1.1rem;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.88rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    button:disabled { opacity: 0.45; cursor: default; }
+    .btn-preview { background: #1d4ed8; color: #fff; }
+    .btn-preview:not(:disabled):hover { background: #2563eb; }
+    .btn-dose { background: #15803d; color: #fff; }
+    .btn-dose:not(:disabled):hover { background: #16a34a; }
+    .btn-abort { background: #991b1b; color: #fff; display: none; }
+    .btn-abort.visible { display: inline-block; }
+    .btn-abort:not(:disabled):hover { background: #b91c1c; }
+
+    /* Preview table */
+    #preview-panel { margin-top: 1.1rem; display: none; }
+    #preview-panel.visible { display: block; }
+    .preview-title { font-size: 0.75rem; color: #6b7280; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 0.5rem; }
+    .dose-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    .dose-table td { padding: 0.3rem 0.4rem; }
+    .dose-table .lbl { color: #9ca3af; }
+    .dose-table .val { text-align: right; font-variant-numeric: tabular-nums; color: #e5e7eb; }
+    .dose-table .delay { text-align: right; color: #4b5563; font-size: 0.8rem; }
+    .dose-table tr:nth-child(even) { background: #111827; }
+    .dose-table .total td { border-top: 1px solid #374151; padding-top: 0.45rem; font-weight: 600; color: #fff; }
+
+    /* Log panel */
+    .log-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.7rem; }
+    .btn-clear {
+      padding: 0.25rem 0.6rem;
+      background: #374151;
+      color: #9ca3af;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      border: none;
+      cursor: pointer;
+    }
+    .btn-clear:hover { background: #4b5563; }
+
+    #log {
+      height: 420px;
+      overflow-y: auto;
+      font-family: ui-monospace, monospace;
+      font-size: 0.76rem;
+      line-height: 1.55;
+      scrollbar-width: thin;
+      scrollbar-color: #374151 transparent;
+    }
+    .log-entry { padding: 0.1rem 0.2rem; border-bottom: 1px solid #1f2937; }
+    .log-entry .ts { color: #374151; }
+
+    .log-entry.ui        { color: #fbbf24; }
+    .log-entry.running   { color: #38bdf8; }
+    .log-entry.completed { color: #4ade80; }
+    .log-entry.failed    { color: #f87171; }
+    .log-entry.aborted   { color: #f87171; }
+    .log-entry.post_delay { color: #c084fc; }
+    .log-entry.accepted  { color: #94a3b8; }
+    .log-entry.status    { color: #4b5563; }
+
+    @media (max-width: 680px) {
+      main { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Doser UI</h1>
+  <span id="mqtt-status" class="disconnected">MQTT: connecting…</span>
+</header>
+
+<main>
+  <!-- ── Left: Dose Form ───────────────────────────────────────────────── -->
+  <div class="card">
+    <div class="card-title">Dose</div>
+
+    {% if systems | length > 1 %}
+    <div class="card-title" style="margin-bottom:0.4rem">System</div>
+    <div class="system-selector" id="system-selector">
+      {% for s in systems %}
+      <button class="system-btn {% if loop.first %}active{% endif %}"
+              data-id="{{ s.id }}"
+              onclick="selectSystem(this)">{{ s.name }}</button>
+      {% endfor %}
+    </div>
+    {% else %}
+    <!-- Single system: keep the id in a hidden field, no selector shown -->
+    <input type="hidden" id="single-system-id" value="{{ systems[0].id }}">
+    {% endif %}
+
+    <div class="field">
+      <label>Gallons Added</label>
+      <input type="number" id="gallons" value="1.0" min="0.1" step="0.5">
+    </div>
+
+    <div class="field">
+      <label>Growth Stage</label>
+      <select id="stage">
+        {% for key, label in stages.items() %}
+        <option value="{{ key }}" {% if key == 'early_veg' %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="field">
+      <label>Strength Factor</label>
+      <input type="number" id="strength" value="{{ default_strength }}" min="0.01" max="1.0" step="0.01">
+    </div>
+
+    <div class="actions">
+      <button class="btn-preview" onclick="previewDose()">Preview</button>
+      <button class="btn-dose" id="dose-btn" onclick="sendDose()">Dose</button>
+      <button class="btn-abort" id="abort-btn" onclick="abortBatch()">Abort</button>
+    </div>
+
+    <div id="preview-panel">
+      <div class="preview-title">Calculated Doses</div>
+      <table class="dose-table">
+        <tbody id="preview-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── Right: Live Log ──────────────────────────────────────────────── -->
+  <div class="card">
+    <div class="log-header">
+      <div class="card-title" style="margin-bottom:0">ESP32 Log</div>
+      <button class="btn-clear" onclick="clearLog()">Clear</button>
+    </div>
+    <div id="log"></div>
+  </div>
+</main>
+
+<script>
+  const DELAYS = {{ delays | tojson }};
+  const NUTRIENT_LABELS = {calmag:'Cal-Mag', micro:'Micro', gro:'Gro', bloom:'Bloom'};
+
+  let activeBatchId = null;
+
+  // ── System selection ────────────────────────────────────────────────────────
+  function selectSystem(btn) {
+    document.querySelectorAll('.system-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }
+
+  function getSystemId() {
+    const active = document.querySelector('.system-btn.active');
+    if (active) return active.dataset.id;
+    const hidden = document.getElementById('single-system-id');
+    return hidden ? hidden.value : 'tent1';
+  }
+
+  // ── Form data ───────────────────────────────────────────────────────────────
+  function getFormData() {
+    const gallons  = parseFloat(document.getElementById('gallons').value);
+    const stage    = document.getElementById('stage').value;
+    const strength = parseFloat(document.getElementById('strength').value);
+
+    if (isNaN(gallons) || gallons <= 0)          { alert('Enter a valid gallons value.'); return null; }
+    if (isNaN(strength) || strength <= 0 || strength > 1) { alert('Strength must be between 0 and 1.'); return null; }
+
+    return { gallons, stage, strength, system_id: getSystemId() };
+  }
+
+  // ── Preview ─────────────────────────────────────────────────────────────────
+  async function previewDose() {
+    const body = getFormData();
+    if (!body) return;
+
+    const resp = await fetch('/preview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await resp.json();
+    if (data.error) { alert(data.error); return; }
+    renderPreview(data);
+  }
+
+  function renderPreview(data) {
+    const nutrients = ['calmag', 'micro', 'gro', 'bloom'];
+    const rows = nutrients.map(k => `
+      <tr>
+        <td class="lbl">${NUTRIENT_LABELS[k]}</td>
+        <td class="val">${data.doses[k].toFixed(2)} ml</td>
+        <td class="delay">→ ${data.delays[k]}s</td>
+      </tr>`).join('');
+
+    document.getElementById('preview-body').innerHTML = rows + `
+      <tr class="total">
+        <td class="lbl">Total</td>
+        <td class="val">${data.total_ml.toFixed(2)} ml</td>
+        <td></td>
+      </tr>`;
+
+    document.getElementById('preview-panel').classList.add('visible');
+  }
+
+  // ── Dose ────────────────────────────────────────────────────────────────────
+  async function sendDose() {
+    const body = getFormData();
+    if (!body) return;
+
+    const btn = document.getElementById('dose-btn');
+    btn.disabled = true;
+
+    const resp = await fetch('/dose', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await resp.json();
+
+    if (data.error) {
+      alert(data.error);
+      btn.disabled = false;
+      return;
+    }
+
+    activeBatchId = data.batch_id;
+    document.getElementById('abort-btn').classList.add('visible');
+
+    // Show preview from the response doses
+    renderPreview({
+      doses: data.doses,
+      total_ml: Object.values(data.doses).reduce((a, b) => a + b, 0),
+      delays: DELAYS,
+    });
+  }
+
+  // ── Abort ───────────────────────────────────────────────────────────────────
+  async function abortBatch() {
+    await fetch('/abort', { method: 'POST' });
+  }
+
+  // ── Log ─────────────────────────────────────────────────────────────────────
+  function appendLog(text, cssClass) {
+    const log = document.getElementById('log');
+    const el = document.createElement('div');
+    el.className = 'log-entry ' + (cssClass || '');
+    el.innerHTML = text;
+    log.appendChild(el);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function formatMsg(msg) {
+    const ts = `<span class="ts">[${msg._ts || '??:??:??'}]</span> `;
+    const type = msg.type;
+
+    if (type === 'ui_event') {
+      const map = {
+        mqtt_connected:    'MQTT connected',
+        mqtt_disconnected: 'MQTT disconnected',
+        mqtt_error:        `MQTT error rc=${msg.rc}`,
+        batch_sent:        `Batch sent → ${msg.batch_id}`,
+        stream_connected:  'Log stream connected',
+      };
+      return { text: ts + (map[msg.state] || msg.state), cls: 'ui' };
+    }
+
+    if (type === 'batch_event') {
+      const cls = msg.state === 'completed' ? 'completed'
+                : msg.state === 'aborted'   ? 'aborted'
+                : msg.state === 'accepted'  ? 'accepted'
+                : '';
+      const reason = msg.reason ? ` (${msg.reason})` : '';
+      return { text: `${ts}Batch [${msg.batch_id}] → <b>${msg.state}</b>${reason}`, cls };
+    }
+
+    if (type === 'batch_item_event') {
+      const ml = msg.requested_ml != null ? ` ${msg.requested_ml.toFixed(2)} ml` : '';
+      const extra = msg.state === 'post_delay' && msg.post_delay_ms
+        ? ` (delay ${(msg.post_delay_ms / 1000).toFixed(0)}s)` : '';
+      const label = NUTRIENT_LABELS[msg.pump_id] || msg.pump_id;
+      return {
+        text: `${ts}&nbsp;&nbsp;[${msg.item_id || msg.index}] ${label} ${msg.cmd}${ml} → <b>${msg.state}</b>${extra}`,
+        cls: msg.state,
+      };
+    }
+
+    if (type === 'pump_event') {
+      return { text: `${ts}Pump [${msg.pump_id}] → ${msg.state}`, cls: msg.state };
+    }
+
+    if (type === 'controller_status') {
+      const up = msg.uptime_sec != null ? ` (up ${msg.uptime_sec}s)` : '';
+      return { text: `${ts}ESP32 ${msg.state}${up}`, cls: 'status' };
+    }
+
+    if (type === 'batch_response') {
+      const ok = msg.ok ? 'accepted' : `rejected: ${msg.reason}`;
+      return { text: `${ts}Batch response: ${ok}`, cls: msg.ok ? 'accepted' : 'failed' };
+    }
+
+    // Fallback: raw JSON
+    return { text: `${ts}${JSON.stringify(msg)}`, cls: '' };
+  }
+
+  function clearLog() {
+    document.getElementById('log').innerHTML = '';
+  }
+
+  // ── SSE ─────────────────────────────────────────────────────────────────────
+  const evtSource = new EventSource('/stream');
+  const mqttStatus = document.getElementById('mqtt-status');
+
+  evtSource.onmessage = function (e) {
+    const msg = JSON.parse(e.data);
+
+    if (msg.type === 'ui_event') {
+      if (msg.state === 'mqtt_connected') {
+        mqttStatus.textContent = 'MQTT: connected';
+        mqttStatus.className = 'connected';
+      } else if (msg.state === 'mqtt_disconnected') {
+        mqttStatus.textContent = 'MQTT: disconnected';
+        mqttStatus.className = 'disconnected';
+      }
+    }
+
+    // Restore UI state on batch finish
+    if (msg.type === 'batch_event' && (msg.state === 'completed' || msg.state === 'aborted')) {
+      if (msg.batch_id === activeBatchId) {
+        activeBatchId = null;
+        document.getElementById('dose-btn').disabled = false;
+        document.getElementById('abort-btn').classList.remove('visible');
+      }
+    }
+
+    const { text, cls } = formatMsg(msg);
+    appendLog(text, cls);
+  };
+
+  evtSource.onerror = function () {
+    mqttStatus.textContent = 'MQTT: stream error';
+    mqttStatus.className = 'disconnected';
+  };
+</script>
+
+</body>
+</html>
