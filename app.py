@@ -6,6 +6,7 @@ from uuid import uuid4
 
 import paho.mqtt.client as mqtt
 import functools
+from datetime import timedelta
 
 from flask import Flask, Response, jsonify, redirect, render_template, request, session, url_for
 
@@ -33,6 +34,9 @@ from config import (
 
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_SECURE'] = False
+app.permanent_session_lifetime = timedelta(days=30)
 
 
 def login_required(f):
@@ -197,6 +201,7 @@ def login():
     error = None
     if request.method == "POST":
         if request.form.get("username") == UI_USER and request.form.get("password") == UI_PASS:
+            session.permanent = True
             session["authed"] = True
             return redirect(request.args.get("next") or url_for("index"))
         error = "Invalid username or password."
