@@ -28,7 +28,7 @@ from config import (
 
 app = Flask(__name__)
 
-# ── SSE broadcast ─────────────────────────────────────────────────────────────
+# ── SSE broadcast ─────────────────────────────────────────────────────
 # Each connected browser gets its own queue; broadcast pushes to all of them.
 _sse_clients: list[queue.Queue] = []
 _sse_lock = threading.Lock()
@@ -47,7 +47,7 @@ def broadcast(data: dict) -> None:
             _sse_clients.remove(q)
 
 
-# ── MQTT client ───────────────────────────────────────────────────────────────
+# ── MQTT client ──────────────────────────────────────────────────────
 _mqtt = mqtt.Client(client_id="doser-ui", protocol=mqtt.MQTTv311)
 
 
@@ -88,7 +88,7 @@ def start_mqtt() -> None:
     _mqtt.loop_start()
 
 
-# ── Nutrient math ─────────────────────────────────────────────────────────────
+# ── Nutrient math ─────────────────────────────────────────────────────
 def compute_doses(gallons: float, stage: str, strength: float) -> dict:
     recipe = STAGE_RECIPES[stage]
     return {
@@ -155,14 +155,29 @@ def _parse_form(data: dict) -> tuple:
     return gallons, stage, strength, system_id
 
 
-# ── Routes ────────────────────────────────────────────────────────────────────
+# ── Routes ───────────────────────────────────────────────────────────────
+PUMP_LABELS = {
+    "calmag": "Cal-Mag",
+    "micro":  "Micro",
+    "gro":    "Gro",
+    "bloom":  "Bloom",
+    "phup":   "pH Up",
+    "phdown": "pH Down",
+}
+
+PUMP_ORDER = ["calmag", "micro", "gro", "bloom", "phup", "phdown"]
+
+
 @app.route("/")
 def index():
+    system = SYSTEMS[0]
+    pumps = [{"id": pid, "label": PUMP_LABELS.get(pid, pid)} for pid in PUMP_ORDER if pid in system["pumps"].values()]
     return render_template(
         "index.html",
         systems=SYSTEMS,
         stages=STAGE_LABELS,
         default_strength=DEFAULT_STRENGTH,
+        pumps=pumps,
         delays={
             "calmag": DELAY_CALMAG_SEC,
             "micro":  DELAY_MICRO_SEC,
@@ -212,6 +227,52 @@ def abort():
     return jsonify({"ok": True})
 
 
+@app.route("/command", methods=["POST"])
+def command():
+    data = request.json
+    pump_ids = data.get("pump_ids", [])
+    cmd = data.get("cmd", "").strip()
+
+    if not pump_ids:
+        return jsonify({"error": "no pumps selected"}), 400
+    if not cmd:
+        return jsonify({"error": "no command specified"}), 400
+
+    valid_pumps = {pid for s in SYSTEMS for pid in s["pumps"].values()}
+    invalid = [p for p in pump_ids if p not in valid_pumps]
+    if invalid:
+        return jsonify({"error": "unknown pump_ids: {}".format(invalid)}), 400
+
+    c = cmd.upper()
+    is_motor_dose = c.startswith("D,") or c.startswith("DS,") or c.startswith("DC,") or c == "R"
+
+    if len(pump_ids) > 1 and is_motor_dose:
+        payload = {
+            "v": 1,
+            "type": "pump_batch",
+            "batch_id": "manual-{}".format(uuid4().hex[:8]),
+            "options": {"stop_on_error": False},
+            "commands": [
+                {"item_id": "step-{}".format(i + 1), "pump_id": pid, "cmd": cmd}
+                for i, pid in enumerate(pump_ids)
+            ],
+        }
+        _mqtt.publish(MQTT_CMD_TOPIC, json.dumps(payload))
+        broadcast({"type": "ui_event", "state": "batch_sent", "batch_id": payload["batch_id"], "ts": _ts()})
+    else:
+        for pid in pump_ids:
+            payload = {
+                "v": 1,
+                "pump_id": pid,
+                "cmd": cmd,
+                "request_id": "manual-{}".format(uuid4().hex[:6]),
+                "options": {"queue_if_busy": True},
+            }
+            _mqtt.publish(MQTT_CMD_TOPIC, json.dumps(payload))
+
+    return jsonify({"ok": True, "pump_ids": pump_ids, "cmd": cmd})
+
+
 @app.route("/stream")
 def stream():
     """SSE endpoint — each browser connection gets its own message queue."""
@@ -221,7 +282,6 @@ def stream():
 
     def generate():
         try:
-            # Greet the new connection
             yield "data: {}\n\n".format(
                 json.dumps({"type": "ui_event", "state": "stream_connected", "ts": _ts()})
             )
