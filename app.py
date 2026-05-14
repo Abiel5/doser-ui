@@ -48,23 +48,26 @@ def broadcast(data: dict) -> None:
 
 
 # ── MQTT client ──────────────────────────────────────────────────────
-_mqtt = mqtt.Client(client_id="doser-ui", protocol=mqtt.MQTTv311)
+_mqtt = mqtt.Client(
+    callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
+    client_id="doser-ui",
+)
 
 
 def _ts() -> str:
     return datetime.now().strftime("%H:%M:%S")
 
 
-def _on_connect(client, userdata, flags, rc):
-    if rc == 0:
+def _on_connect(client, userdata, connect_flags, reason_code, properties):
+    if reason_code.is_failure:
+        broadcast({"type": "ui_event", "state": "mqtt_error", "rc": str(reason_code), "ts": _ts()})
+    else:
         client.subscribe(MQTT_RESP_TOPIC)
         client.subscribe(MQTT_STATUS_TOPIC)
         broadcast({"type": "ui_event", "state": "mqtt_connected", "ts": _ts()})
-    else:
-        broadcast({"type": "ui_event", "state": "mqtt_error", "rc": rc, "ts": _ts()})
 
 
-def _on_disconnect(client, userdata, rc):
+def _on_disconnect(client, userdata, disconnect_flags, reason_code, properties):
     broadcast({"type": "ui_event", "state": "mqtt_disconnected", "ts": _ts()})
 
 
