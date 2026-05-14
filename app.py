@@ -6,9 +6,9 @@ from uuid import uuid4
 
 import paho.mqtt.client as mqtt
 import functools
-from datetime import timedelta
+import secrets
 
-from flask import Flask, Response, jsonify, redirect, render_template, request, session, url_for
+from flask import Flask, Response, jsonify, make_response, redirect, render_template, request, url_for
 
 from config import (
     CALMAG_ML_PER_GAL,
@@ -24,7 +24,6 @@ from config import (
     MQTT_RESP_TOPIC,
     MQTT_STATUS_TOPIC,
     MQTT_USER,
-    SECRET_KEY,
     STAGE_LABELS,
     STAGE_RECIPES,
     SYSTEMS,
@@ -33,16 +32,18 @@ from config import (
 )
 
 app = Flask(__name__)
-app.secret_key = SECRET_KEY
-app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-app.config['SESSION_COOKIE_SECURE'] = False
-app.permanent_session_lifetime = timedelta(days=30)
+
+# Valid login tokens — cleared on restart (users re-login after service restart)
+_authed_tokens: set[str] = set()
+
+_COOKIE = "doser_session"
+_COOKIE_MAX_AGE = 30 * 24 * 3600  # 30 days
 
 
 def login_required(f):
     @functools.wraps(f)
     def wrapper(*args, **kwargs):
-        if not session.get("authed"):
+        if request.cookies.get(_COOKIE) not in _authed_tokens:
             return redirect(url_for("login", next=request.path))
         return f(*args, **kwargs)
     return wrapper
@@ -201,17 +202,22 @@ def login():
     error = None
     if request.method == "POST":
         if request.form.get("username") == UI_USER and request.form.get("password") == UI_PASS:
-            session.permanent = True
-            session["authed"] = True
-            return redirect(request.args.get("next") or url_for("index"))
+            token = secrets.token_hex(32)
+            _authed_tokens.add(token)
+            resp = make_response(redirect(request.args.get("next") or url_for("index")))
+            resp.set_cookie(_COOKIE, token, max_age=_COOKIE_MAX_AGE, samesite="Lax", httponly=True, secure=False)
+            return resp
         error = "Invalid username or password."
     return render_template("login.html", error=error)
 
 
 @app.route("/logout", methods=["POST"])
 def logout():
-    session.clear()
-    return redirect(url_for("login"))
+    token = request.cookies.get(_COOKIE)
+    _authed_tokens.discard(token)
+    resp = make_response(redirect(url_for("login")))
+    resp.delete_cookie(_COOKIE)
+    return resp
 
 
 @app.route("/")
