@@ -5,7 +5,9 @@ from datetime import datetime
 from uuid import uuid4
 
 import paho.mqtt.client as mqtt
-from flask import Flask, Response, jsonify, render_template, request
+import functools
+
+from flask import Flask, Response, jsonify, redirect, render_template, request, session, url_for
 
 from config import (
     CALMAG_ML_PER_GAL,
@@ -21,12 +23,25 @@ from config import (
     MQTT_RESP_TOPIC,
     MQTT_STATUS_TOPIC,
     MQTT_USER,
+    SECRET_KEY,
     STAGE_LABELS,
     STAGE_RECIPES,
     SYSTEMS,
+    UI_PASS,
+    UI_USER,
 )
 
 app = Flask(__name__)
+app.secret_key = SECRET_KEY
+
+
+def login_required(f):
+    @functools.wraps(f)
+    def wrapper(*args, **kwargs):
+        if not session.get("authed"):
+            return redirect(url_for("login", next=request.path))
+        return f(*args, **kwargs)
+    return wrapper
 
 # ── SSE broadcast ─────────────────────────────────────────────────────────────
 # Each connected browser gets its own queue; broadcast pushes to all of them.
@@ -177,7 +192,25 @@ PUMP_LABELS = {
 PUMP_ORDER = ["calmag", "micro", "gro", "bloom", "phup", "phdown"]
 
 
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    error = None
+    if request.method == "POST":
+        if request.form.get("username") == UI_USER and request.form.get("password") == UI_PASS:
+            session["authed"] = True
+            return redirect(request.args.get("next") or url_for("index"))
+        error = "Invalid username or password."
+    return render_template("login.html", error=error)
+
+
+@app.route("/logout", methods=["POST"])
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
+
+
 @app.route("/")
+@login_required
 def index():
     system = SYSTEMS[0]
     pumps = [{"id": pid, "label": PUMP_LABELS.get(pid, pid)} for pid in PUMP_ORDER if pid in system["pumps"].values()]
@@ -197,6 +230,7 @@ def index():
 
 
 @app.route("/preview", methods=["POST"])
+@login_required
 def preview():
     try:
         gallons, stage, strength, _ = _parse_form(request.json)
@@ -217,6 +251,7 @@ def preview():
 
 
 @app.route("/dose", methods=["POST"])
+@login_required
 def dose():
     try:
         gallons, stage, strength, system_id = _parse_form(request.json)
@@ -231,12 +266,14 @@ def dose():
 
 
 @app.route("/abort", methods=["POST"])
+@login_required
 def abort():
     _mqtt.publish(MQTT_CMD_TOPIC, json.dumps({"v": 1, "type": "batch_abort"}))
     return jsonify({"ok": True})
 
 
 @app.route("/command", methods=["POST"])
+@login_required
 def command():
     data = request.json
     pump_ids = data.get("pump_ids", [])
@@ -285,6 +322,7 @@ def command():
 
 
 @app.route("/stream")
+@login_required
 def stream():
     """SSE endpoint — each browser connection gets its own message queue."""
     client_q: queue.Queue = queue.Queue(maxsize=200)

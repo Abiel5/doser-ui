@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Doser UI — Login</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #111827;
+      color: #e5e7eb;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .card {
+      background: #1f2937;
+      border: 1px solid #374151;
+      border-radius: 12px;
+      padding: 2rem;
+      width: 100%;
+      max-width: 360px;
+    }
+    h1 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #38bdf8;
+      margin-bottom: 1.5rem;
+      letter-spacing: 0.02em;
+    }
+    .field { margin-bottom: 1rem; }
+    .field label {
+      display: block;
+      font-size: 0.78rem;
+      color: #9ca3af;
+      margin-bottom: 0.3rem;
+    }
+    .field input {
+      width: 100%;
+      padding: 0.55rem 0.7rem;
+      background: #111827;
+      border: 1px solid #374151;
+      border-radius: 6px;
+      color: #e5e7eb;
+      font-size: 0.9rem;
+    }
+    .field input:focus {
+      outline: none;
+      border-color: #38bdf8;
+    }
+    .error {
+      background: #450a0a;
+      color: #f87171;
+      border-radius: 6px;
+      padding: 0.5rem 0.7rem;
+      font-size: 0.85rem;
+      margin-bottom: 1rem;
+    }
+    button {
+      width: 100%;
+      padding: 0.6rem;
+      background: #1d4ed8;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      cursor: pointer;
+      margin-top: 0.5rem;
+    }
+    button:hover { background: #2563eb; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Doser UI</h1>
+    {% if error %}
+    <div class="error">{{ error }}</div>
+    {% endif %}
+    <form method="POST">
+      <div class="field">
+        <label>Username</label>
+        <input type="text" name="username" autocomplete="username" autofocus>
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input type="password" name="password" autocomplete="current-password">
+      </div>
+      <button type="submit">Sign in</button>
+    </form>
+  </div>
+</body>
+</html>
