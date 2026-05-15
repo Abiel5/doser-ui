@@ -288,12 +288,25 @@ def abort():
     return jsonify({"ok": True})
 
 
+VALID_SENSOR_IDS = {"ph", "ec", "water_temp", "air"}
+
+
 @app.route("/sensor_read", methods=["POST"])
 @login_required
 def sensor_read():
-    payload = {"v": 1, "cmd": "read_all", "request_id": "ui-{}".format(uuid4().hex[:8])}
-    _mqtt.publish(SENSOR_CMD_TOPIC, json.dumps(payload))
-    broadcast({"type": "ui_event", "state": "sensor_read_sent", "ts": _ts()})
+    data = request.json or {}
+    sensor_ids = [s for s in data.get("sensor_ids", []) if s in VALID_SENSOR_IDS]
+
+    if sensor_ids:
+        for sid in sensor_ids:
+            payload = {"v": 1, "cmd": "read", "sensor_id": sid, "request_id": "ui-{}".format(uuid4().hex[:8])}
+            _mqtt.publish(SENSOR_CMD_TOPIC, json.dumps(payload))
+        broadcast({"type": "ui_event", "state": "sensor_read_sent", "sensors": sensor_ids, "ts": _ts()})
+    else:
+        payload = {"v": 1, "cmd": "read_all", "request_id": "ui-{}".format(uuid4().hex[:8])}
+        _mqtt.publish(SENSOR_CMD_TOPIC, json.dumps(payload))
+        broadcast({"type": "ui_event", "state": "sensor_read_sent", "sensors": ["all"], "ts": _ts()})
+
     return jsonify({"ok": True})
 
 

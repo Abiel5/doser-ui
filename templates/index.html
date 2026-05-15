@@ -376,8 +376,19 @@
         </div>
       </div>
       <div class="reading-updated">Updated: <span id="r-updated">never</span></div>
+
+      <div style="margin-top:0.9rem">
+        <div style="font-size:0.78rem;color:#9ca3af;margin-bottom:0.4rem">Select Sensors</div>
+        <div class="pump-grid">
+          <button class="pump-btn" data-sensor="ph"         onclick="toggleSensor(this)">pH</button>
+          <button class="pump-btn" data-sensor="ec"         onclick="toggleSensor(this)">EC</button>
+          <button class="pump-btn" data-sensor="water_temp" onclick="toggleSensor(this)">Water Temp</button>
+          <button class="pump-btn" data-sensor="air"        onclick="toggleSensor(this)">Air</button>
+        </div>
+      </div>
       <div class="actions">
-        <button class="btn-read-now" id="read-now-btn" onclick="triggerSensorRead()">Read Now</button>
+        <button class="btn-read-now" id="read-selected-btn" onclick="triggerSensorRead(false)">Read Selected</button>
+        <button class="btn-read-now" id="read-all-btn"      onclick="triggerSensorRead(true)">Read All</button>
       </div>
     </div>
 
@@ -518,12 +529,21 @@
     document.getElementById('r-updated').textContent = msg._ts || '—';
   }
 
-  async function triggerSensorRead() {
-    const btn = document.getElementById('read-now-btn');
-    btn.disabled = true;
-    btn.textContent = 'Reading…';
-    await fetch('/sensor_read', { method: 'POST' });
-    setTimeout(() => { btn.disabled = false; btn.textContent = 'Read Now'; }, 3500);
+  function toggleSensor(btn) { btn.classList.toggle('selected'); }
+
+  async function triggerSensorRead(readAll) {
+    const selected = [...document.querySelectorAll('[data-sensor].selected')].map(b => b.dataset.sensor);
+    if (!readAll && selected.length === 0) { alert('Select at least one sensor, or use Read All.'); return; }
+
+    const btnSelected = document.getElementById('read-selected-btn');
+    const btnAll      = document.getElementById('read-all-btn');
+    btnSelected.disabled = true;
+    btnAll.disabled      = true;
+
+    const body = readAll ? {} : { sensor_ids: selected };
+    await fetch('/sensor_read', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+
+    setTimeout(() => { btnSelected.disabled = false; btnAll.disabled = false; }, 3500);
   }
 
   // ── Logging ───────────────────────────────────────────────────────────────
@@ -552,7 +572,7 @@
         mqtt_error:        `MQTT error rc=${msg.rc}`,
         batch_sent:        `Batch sent → ${msg.batch_id}`,
         stream_connected:  'Log stream connected',
-        sensor_read_sent:  'Sensor read sent',
+        sensor_read_sent:  `Sensor read sent → ${(msg.sensors || []).join(', ')}`,
       };
       return { text: ts + (map[msg.state] || msg.state), cls: 'ui' };
     }
