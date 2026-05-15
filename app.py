@@ -24,6 +24,9 @@ from config import (
     MQTT_RESP_TOPIC,
     MQTT_STATUS_TOPIC,
     MQTT_USER,
+    SENSOR_CMD_TOPIC,
+    SENSOR_RESP_TOPIC,
+    SENSOR_STATUS_TOPIC,
     STAGE_LABELS,
     STAGE_RECIPES,
     SYSTEMS,
@@ -36,7 +39,7 @@ app = Flask(__name__)
 # Valid login tokens — cleared on restart (users re-login after service restart)
 _authed_tokens: set[str] = set()
 
-_COOKIE = "doser_session"
+_COOKIE = "grow_session"
 _COOKIE_MAX_AGE = 30 * 24 * 3600  # 30 days
 
 
@@ -71,7 +74,7 @@ def broadcast(data: dict) -> None:
 # ── MQTT client ───────────────────────────────────────────────────────────────
 _mqtt = mqtt.Client(
     callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
-    client_id="doser-ui",
+    client_id="grow-ui",
 )
 
 
@@ -88,6 +91,8 @@ def _on_connect(client, userdata, connect_flags, reason_code, properties):
         _mqtt_connected = True
         client.subscribe(MQTT_RESP_TOPIC)
         client.subscribe(MQTT_STATUS_TOPIC)
+        client.subscribe(SENSOR_RESP_TOPIC)
+        client.subscribe(SENSOR_STATUS_TOPIC)
         broadcast({"type": "ui_event", "state": "mqtt_connected", "ts": _ts()})
 
 
@@ -280,6 +285,15 @@ def dose():
 @login_required
 def abort():
     _mqtt.publish(MQTT_CMD_TOPIC, json.dumps({"v": 1, "type": "batch_abort"}))
+    return jsonify({"ok": True})
+
+
+@app.route("/sensor_read", methods=["POST"])
+@login_required
+def sensor_read():
+    payload = {"v": 1, "cmd": "read_all", "request_id": "ui-{}".format(uuid4().hex[:8])}
+    _mqtt.publish(SENSOR_CMD_TOPIC, json.dumps(payload))
+    broadcast({"type": "ui_event", "state": "sensor_read_sent", "ts": _ts()})
     return jsonify({"ok": True})
 
 

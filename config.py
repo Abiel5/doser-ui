@@ -15,6 +15,10 @@ MQTT_CMD_TOPIC    = os.environ.get("MQTT_CMD_TOPIC", "esp32/pump/cmd")
 MQTT_RESP_TOPIC   = os.environ.get("MQTT_RESP_TOPIC", "esp32/pump/resp")
 MQTT_STATUS_TOPIC = os.environ.get("MQTT_STATUS_TOPIC", "esp32/pump/status")
 
+SENSOR_CMD_TOPIC    = os.environ.get("SENSOR_CMD_TOPIC",    "esp32/sensors/cmd")
+SENSOR_RESP_TOPIC   = os.environ.get("SENSOR_RESP_TOPIC",   "esp32/sensors/resp")
+SENSOR_STATUS_TOPIC = os.environ.get("SENSOR_STATUS_TOPIC", "esp32/sensors/status")
+
 # Dosing defaults — can move these to .env later if needed
 CALMAG_ML_PER_GAL  = float(os.environ.get("CALMAG_ML_PER_GAL", "3.8"))
 DEFAULT_STRENGTH   = float(os.environ.get("DEFAULT_STRENGTH", "0.33"))

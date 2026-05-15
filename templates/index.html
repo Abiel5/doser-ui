@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Doser UI</title>
+  <title>Grow UI</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -30,19 +30,44 @@
       background: #1f2937;
       color: #9ca3af;
     }
-    #mqtt-status.connected { background: #14532d; color: #4ade80; }
+    #mqtt-status.connected    { background: #14532d; color: #4ade80; }
     #mqtt-status.disconnected { background: #450a0a; color: #f87171; }
 
-    main {
+    /* ── Tabs ── */
+    .tab-bar {
+      padding: 0 1.5rem;
+      border-bottom: 1px solid #1f2937;
+      display: flex;
+    }
+    .tab-btn {
+      padding: 0.65rem 1.2rem;
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: #6b7280;
+      font-size: 0.88rem;
+      font-weight: 500;
+      cursor: pointer;
+      margin-bottom: -1px;
+    }
+    .tab-btn.active               { color: #38bdf8; border-bottom-color: #38bdf8; }
+    .tab-btn:hover:not(.active)   { color: #9ca3af; }
+    .tab-panel                    { display: none; }
+    .tab-panel.active             { display: block; }
+
+    /* ── Layout grids ── */
+    .pumps-main, .sensors-main {
       max-width: 960px;
       margin: 1.5rem auto;
       padding: 0 1rem;
       display: grid;
-      grid-template-columns: 340px 1fr;
       gap: 1.2rem;
       align-items: start;
     }
+    .pumps-main   { grid-template-columns: 340px 1fr; }
+    .sensors-main { grid-template-columns: 260px 1fr; }
 
+    /* ── Cards ── */
     .card {
       background: #1f2937;
       border: 1px solid #374151;
@@ -58,6 +83,7 @@
       margin-bottom: 1rem;
     }
 
+    /* ── System selector ── */
     .system-selector { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1.1rem; }
     .system-btn {
       padding: 0.35rem 0.9rem;
@@ -70,6 +96,7 @@
     }
     .system-btn.active { border-color: #38bdf8; color: #38bdf8; background: #0c2b40; }
 
+    /* ── Form fields ── */
     .field { margin-bottom: 0.85rem; }
     .field > label { display: block; font-size: 0.78rem; color: #9ca3af; margin-bottom: 0.3rem; }
     .field input:not([type=radio]), .field select {
@@ -87,6 +114,7 @@
     }
     .field select option { background: #1f2937; }
 
+    /* ── Buttons ── */
     .actions { display: flex; gap: 0.6rem; margin-top: 1.1rem; flex-wrap: wrap; }
     button {
       padding: 0.55rem 1.1rem;
@@ -98,18 +126,21 @@
       transition: opacity 0.15s;
     }
     button:disabled { opacity: 0.45; cursor: default; }
-    .btn-preview { background: #1d4ed8; color: #fff; }
-    .btn-preview:not(:disabled):hover { background: #2563eb; }
-    .btn-dose { background: #15803d; color: #fff; }
-    .btn-dose:not(:disabled):hover { background: #16a34a; }
-    .btn-abort { background: #991b1b; color: #fff; display: none; }
-    .btn-abort.visible { display: inline-block; }
-    .btn-abort:not(:disabled):hover { background: #b91c1c; }
-    .btn-send { background: #0f766e; color: #fff; }
-    .btn-send:not(:disabled):hover { background: #0d9488; }
+    .btn-preview  { background: #1d4ed8; color: #fff; }
+    .btn-preview:not(:disabled):hover  { background: #2563eb; }
+    .btn-dose     { background: #15803d; color: #fff; }
+    .btn-dose:not(:disabled):hover     { background: #16a34a; }
+    .btn-abort    { background: #991b1b; color: #fff; display: none; }
+    .btn-abort.visible                 { display: inline-block; }
+    .btn-abort:not(:disabled):hover    { background: #b91c1c; }
+    .btn-send     { background: #0f766e; color: #fff; }
+    .btn-send:not(:disabled):hover     { background: #0d9488; }
     .btn-clear-sel { background: #374151; color: #9ca3af; font-size: 0.82rem; }
-    .btn-clear-sel:hover { background: #4b5563; }
+    .btn-clear-sel:hover               { background: #4b5563; }
+    .btn-read-now { background: #0f766e; color: #fff; }
+    .btn-read-now:not(:disabled):hover { background: #0d9488; }
 
+    /* ── Pump grid / command ── */
     .pump-grid { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.3rem; }
     .pump-btn {
       padding: 0.35rem 0.8rem;
@@ -144,6 +175,7 @@
     }
     .ml-group span { font-size: 0.85rem; color: #9ca3af; }
 
+    /* ── Preview panel ── */
     #preview-panel { margin-top: 1.1rem; display: none; }
     #preview-panel.visible { display: block; }
     .preview-title { font-size: 0.75rem; color: #6b7280; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 0.5rem; }
@@ -155,6 +187,21 @@
     .dose-table tr:nth-child(even) { background: #111827; }
     .dose-table .total td { border-top: 1px solid #374151; padding-top: 0.45rem; font-weight: 600; color: #fff; }
 
+    /* ── Sensor readings ── */
+    .readings-table { margin: 0.6rem 0 0.85rem; }
+    .reading-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.42rem 0;
+      border-bottom: 1px solid #111827;
+    }
+    .reading-row:last-child { border-bottom: none; }
+    .reading-label { font-size: 0.82rem; color: #9ca3af; }
+    .reading-value { font-size: 0.88rem; font-weight: 600; font-variant-numeric: tabular-nums; color: #e5e7eb; }
+    .reading-updated { font-size: 0.72rem; color: #4b5563; }
+
+    /* ── Logs ── */
     .log-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.7rem; }
     .btn-clear {
       padding: 0.25rem 0.6rem;
@@ -166,8 +213,7 @@
       cursor: pointer;
     }
     .btn-clear:hover { background: #4b5563; }
-
-    #log {
+    .log-box {
       height: 420px;
       overflow-y: auto;
       font-family: ui-monospace, monospace;
@@ -177,25 +223,25 @@
       scrollbar-color: #374151 transparent;
     }
     .log-entry { padding: 0.1rem 0.2rem; border-bottom: 1px solid #1f2937; }
-    .log-entry .ts { color: #374151; }
-    .log-entry.ui        { color: #fbbf24; }
-    .log-entry.running   { color: #38bdf8; }
-    .log-entry.completed { color: #4ade80; }
-    .log-entry.failed    { color: #f87171; }
-    .log-entry.aborted   { color: #f87171; }
+    .log-entry .ts  { color: #374151; }
+    .log-entry.ui         { color: #fbbf24; }
+    .log-entry.running    { color: #38bdf8; }
+    .log-entry.completed  { color: #4ade80; }
+    .log-entry.failed     { color: #f87171; }
+    .log-entry.aborted    { color: #f87171; }
     .log-entry.post_delay { color: #c084fc; }
-    .log-entry.accepted  { color: #94a3b8; }
-    .log-entry.status    { color: #4b5563; }
+    .log-entry.accepted   { color: #94a3b8; }
+    .log-entry.status     { color: #4b5563; }
 
     @media (max-width: 680px) {
-      main { grid-template-columns: 1fr; }
+      .pumps-main, .sensors-main { grid-template-columns: 1fr; }
     }
   </style>
 </head>
 <body>
 
 <header>
-  <h1>Doser UI</h1>
+  <h1>Grow UI</h1>
   <div style="display:flex;align-items:center;gap:0.75rem">
     <span id="mqtt-status" class="disconnected">MQTT: connecting…</span>
     <form method="POST" action="/logout" style="margin:0">
@@ -204,98 +250,162 @@
   </div>
 </header>
 
-<main>
-  <div class="card">
-    <div class="card-title">Dose</div>
+<div class="tab-bar">
+  <button class="tab-btn active" onclick="switchTab('pumps', this)">Pumps</button>
+  <button class="tab-btn" onclick="switchTab('sensors', this)">Sensors</button>
+</div>
 
-    {% if systems | length > 1 %}
-    <div class="system-selector" id="system-selector">
-      {% for s in systems %}
-      <button class="system-btn {% if loop.first %}active{% endif %}"
-              data-id="{{ s.id }}"
-              onclick="selectSystem(this)">{{ s.name }}</button>
-      {% endfor %}
-    </div>
-    {% else %}
-    <input type="hidden" id="single-system-id" value="{{ systems[0].id }}">
-    {% endif %}
+<!-- ── Pumps tab ─────────────────────────────────────────────────────────── -->
+<div id="pumps-tab" class="tab-panel active">
+  <div class="pumps-main">
 
-    <div class="field">
-      <label>Gallons Added</label>
-      <input type="number" id="gallons" value="1.0" min="0.1" step="0.5">
-    </div>
-    <div class="field">
-      <label>Growth Stage</label>
-      <select id="stage">
-        {% for key, label in stages.items() %}
-        <option value="{{ key }}" {% if key == 'early_veg' %}selected{% endif %}>{{ label }}</option>
+    <div class="card">
+      <div class="card-title">Dose</div>
+
+      {% if systems | length > 1 %}
+      <div class="system-selector" id="system-selector">
+        {% for s in systems %}
+        <button class="system-btn {% if loop.first %}active{% endif %}"
+                data-id="{{ s.id }}"
+                onclick="selectSystem(this)">{{ s.name }}</button>
         {% endfor %}
-      </select>
-    </div>
-    <div class="field">
-      <label>Strength Factor</label>
-      <input type="number" id="strength" value="{{ default_strength }}" min="0.01" max="1.0" step="0.01">
-    </div>
+      </div>
+      {% else %}
+      <input type="hidden" id="single-system-id" value="{{ systems[0].id }}">
+      {% endif %}
 
-    <div class="actions">
-      <button class="btn-preview" onclick="previewDose()">Preview</button>
-      <button class="btn-dose" id="dose-btn" onclick="sendDose()">Dose</button>
-      <button class="btn-abort" id="abort-btn" onclick="abortBatch()">Abort</button>
-    </div>
+      <div class="field">
+        <label>Gallons Added</label>
+        <input type="number" id="gallons" value="1.0" min="0.1" step="0.5">
+      </div>
+      <div class="field">
+        <label>Growth Stage</label>
+        <select id="stage">
+          {% for key, label in stages.items() %}
+          <option value="{{ key }}" {% if key == 'early_veg' %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label>Strength Factor</label>
+        <input type="number" id="strength" value="{{ default_strength }}" min="0.01" max="1.0" step="0.01">
+      </div>
 
-    <div id="preview-panel">
-      <div class="preview-title">Calculated Doses</div>
-      <table class="dose-table">
-        <tbody id="preview-body"></tbody>
-      </table>
-    </div>
-  </div>
+      <div class="actions">
+        <button class="btn-preview" onclick="previewDose()">Preview</button>
+        <button class="btn-dose" id="dose-btn" onclick="sendDose()">Dose</button>
+        <button class="btn-abort" id="abort-btn" onclick="abortBatch()">Abort</button>
+      </div>
 
-  <div class="card">
-    <div class="card-title">Manual Control</div>
-
-    <div class="field">
-      <label>Select Pumps</label>
-      <div class="pump-grid">
-        {% for pump in pumps %}
-        <button class="pump-btn" data-id="{{ pump.id }}" onclick="togglePump(this)">{{ pump.label }}</button>
-        {% endfor %}
+      <div id="preview-panel">
+        <div class="preview-title">Calculated Doses</div>
+        <table class="dose-table">
+          <tbody id="preview-body"></tbody>
+        </table>
       </div>
     </div>
 
-    <div style="margin-bottom:0.85rem">
-      <div style="font-size:0.78rem;color:#9ca3af;margin-bottom:0.3rem">Command</div>
-      <div class="cmd-type-row">
-        <button type="button" class="cmd-btn active" data-cmd="dose" onclick="selectCmd(this)">Dose</button>
-        <button type="button" class="cmd-btn" data-cmd="stop" onclick="selectCmd(this)">Stop</button>
-        <button type="button" class="cmd-btn" data-cmd="info" onclick="selectCmd(this)">Info</button>
-        <span class="ml-group" id="ml-group">
-          <input type="number" id="cmd-ml" value="5" min="0.1" step="0.5">
-          <span>ml</span>
-        </span>
+    <div class="card">
+      <div class="card-title">Manual Control</div>
+
+      <div class="field">
+        <label>Select Pumps</label>
+        <div class="pump-grid">
+          {% for pump in pumps %}
+          <button class="pump-btn" data-id="{{ pump.id }}" onclick="togglePump(this)">{{ pump.label }}</button>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div style="margin-bottom:0.85rem">
+        <div style="font-size:0.78rem;color:#9ca3af;margin-bottom:0.3rem">Command</div>
+        <div class="cmd-type-row">
+          <button type="button" class="cmd-btn active" data-cmd="dose" onclick="selectCmd(this)">Dose</button>
+          <button type="button" class="cmd-btn" data-cmd="stop" onclick="selectCmd(this)">Stop</button>
+          <button type="button" class="cmd-btn" data-cmd="info" onclick="selectCmd(this)">Info</button>
+          <span class="ml-group" id="ml-group">
+            <input type="number" id="cmd-ml" value="5" min="0.1" step="0.5">
+            <span>ml</span>
+          </span>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="btn-send" onclick="sendCommand()">Send</button>
+        <button class="btn-clear-sel" onclick="clearPumpSelection()">Clear Selection</button>
       </div>
     </div>
 
-    <div class="actions">
-      <button class="btn-send" onclick="sendCommand()">Send</button>
-      <button class="btn-clear-sel" onclick="clearPumpSelection()">Clear Selection</button>
+    <div class="card" style="grid-row: span 2;">
+      <div class="log-header">
+        <div class="card-title" style="margin-bottom:0">Pump ESP32 Log</div>
+        <button class="btn-clear" onclick="clearLog('pump-log')">Clear</button>
+      </div>
+      <div class="log-box" id="pump-log"></div>
     </div>
-  </div>
 
-  <div class="card" style="grid-row: span 2;">
-    <div class="log-header">
-      <div class="card-title" style="margin-bottom:0">ESP32 Log</div>
-      <button class="btn-clear" onclick="clearLog()">Clear</button>
-    </div>
-    <div id="log"></div>
   </div>
-</main>
+</div>
+
+<!-- ── Sensors tab ───────────────────────────────────────────────────────── -->
+<div id="sensors-tab" class="tab-panel">
+  <div class="sensors-main">
+
+    <div class="card">
+      <div class="card-title">Readings</div>
+      <div class="readings-table">
+        <div class="reading-row">
+          <span class="reading-label">pH</span>
+          <span class="reading-value" id="r-ph">—</span>
+        </div>
+        <div class="reading-row">
+          <span class="reading-label">EC</span>
+          <span class="reading-value" id="r-ec">—</span>
+        </div>
+        <div class="reading-row">
+          <span class="reading-label">Water Temp</span>
+          <span class="reading-value" id="r-water-temp">—</span>
+        </div>
+        <div class="reading-row">
+          <span class="reading-label">Air Temp</span>
+          <span class="reading-value" id="r-air-temp">—</span>
+        </div>
+        <div class="reading-row">
+          <span class="reading-label">Humidity</span>
+          <span class="reading-value" id="r-air-hum">—</span>
+        </div>
+      </div>
+      <div class="reading-updated">Updated: <span id="r-updated">never</span></div>
+      <div class="actions">
+        <button class="btn-read-now" id="read-now-btn" onclick="triggerSensorRead()">Read Now</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="log-header">
+        <div class="card-title" style="margin-bottom:0">Sensor ESP32 Log</div>
+        <button class="btn-clear" onclick="clearLog('sensor-log')">Clear</button>
+      </div>
+      <div class="log-box" id="sensor-log"></div>
+    </div>
+
+  </div>
+</div>
 
 <script>
   const DELAYS = {{ delays | tojson }};
   const NUTRIENT_LABELS = {calmag:'Cal-Mag', micro:'Micro', gro:'Gro', bloom:'Bloom'};
   let activeBatchId = null;
 
+  // ── Tabs ──────────────────────────────────────────────────────────────────
+  function switchTab(name, btn) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(name + '-tab').classList.add('active');
+  }
+
+  // ── System selector ───────────────────────────────────────────────────────
   function selectSystem(btn) {
     document.querySelectorAll('.system-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
@@ -308,6 +418,7 @@
     return hidden ? hidden.value : 'tent1';
   }
 
+  // ── Dose form ─────────────────────────────────────────────────────────────
   function getFormData() {
     const gallons  = parseFloat(document.getElementById('gallons').value);
     const stage    = document.getElementById('stage').value;
@@ -350,61 +461,7 @@
     await fetch('/abort', { method: 'POST' });
   }
 
-  function appendLog(text, cssClass) {
-    const log = document.getElementById('log');
-    const el = document.createElement('div');
-    el.className = 'log-entry ' + (cssClass || '');
-    el.innerHTML = text;
-    log.appendChild(el);
-    log.scrollTop = log.scrollHeight;
-  }
-
-  function formatMsg(msg) {
-    const ts = `<span class="ts">[${msg._ts || '??:??:??'}]</span> `;
-    const type = msg.type;
-    if (type === 'ui_event') {
-      const map = { mqtt_connected: 'MQTT connected', mqtt_disconnected: 'MQTT disconnected', mqtt_error: `MQTT error rc=${msg.rc}`, batch_sent: `Batch sent → ${msg.batch_id}`, stream_connected: 'Log stream connected' };
-      return { text: ts + (map[msg.state] || msg.state), cls: 'ui' };
-    }
-    if (type === 'batch_event') {
-      const cls = msg.state === 'completed' ? 'completed' : msg.state === 'aborted' ? 'aborted' : msg.state === 'accepted' ? 'accepted' : '';
-      return { text: `${ts}Batch [${msg.batch_id}] → <b>${msg.state}</b>${msg.reason ? ' (' + msg.reason + ')' : ''}`, cls };
-    }
-    if (type === 'batch_item_event') {
-      const ml = msg.requested_ml != null ? ` ${msg.requested_ml.toFixed(2)} ml` : '';
-      const extra = msg.state === 'post_delay' && msg.post_delay_ms ? ` (delay ${(msg.post_delay_ms/1000).toFixed(0)}s)` : '';
-      return { text: `${ts}&nbsp;&nbsp;[${msg.item_id || msg.index}] ${NUTRIENT_LABELS[msg.pump_id] || msg.pump_id} ${msg.cmd}${ml} → <b>${msg.state}</b>${extra}`, cls: msg.state };
-    }
-    if (type === 'pump_event') return { text: `${ts}Pump [${msg.pump_id}] → ${msg.state}`, cls: msg.state };
-    if (type === 'controller_status') return { text: `${ts}ESP32 ${msg.state}${msg.uptime_sec != null ? ' (up ' + msg.uptime_sec + 's)' : ''}`, cls: 'status' };
-    if (type === 'batch_response') return { text: `${ts}Batch response: ${msg.ok ? 'accepted' : 'rejected: ' + msg.reason}`, cls: msg.ok ? 'accepted' : 'failed' };
-    return { text: `${ts}${JSON.stringify(msg)}`, cls: '' };
-  }
-
-  function clearLog() { document.getElementById('log').innerHTML = ''; }
-
-  const evtSource = new EventSource('/stream');
-  const mqttStatus = document.getElementById('mqtt-status');
-
-  evtSource.onmessage = function (e) {
-    const msg = JSON.parse(e.data);
-    if (msg.type === 'ui_event') {
-      if (msg.state === 'mqtt_connected') { mqttStatus.textContent = 'MQTT: connected'; mqttStatus.className = 'connected'; }
-      else if (msg.state === 'mqtt_disconnected') { mqttStatus.textContent = 'MQTT: disconnected'; mqttStatus.className = 'disconnected'; }
-    }
-    if (msg.type === 'batch_event' && (msg.state === 'completed' || msg.state === 'aborted')) {
-      if (msg.batch_id === activeBatchId) {
-        activeBatchId = null;
-        document.getElementById('dose-btn').disabled = false;
-        document.getElementById('abort-btn').classList.remove('visible');
-      }
-    }
-    const { text, cls } = formatMsg(msg);
-    appendLog(text, cls);
-  };
-
-  evtSource.onerror = function () { mqttStatus.textContent = 'MQTT: stream error'; mqttStatus.className = 'disconnected'; };
-
+  // ── Pump manual control ───────────────────────────────────────────────────
   function togglePump(btn) { btn.classList.toggle('selected'); }
   function clearPumpSelection() { document.querySelectorAll('.pump-btn.selected').forEach(b => b.classList.remove('selected')); }
 
@@ -436,6 +493,163 @@
     const data = await resp.json();
     if (data.error) alert(data.error);
   }
+
+  // ── Sensor readings display ───────────────────────────────────────────────
+  function setReading(id, val, decimals, unit) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (val == null || val < 0) {
+      el.textContent = '—';
+      el.style.color = '#ef4444';
+    } else {
+      el.textContent = val.toFixed(decimals) + unit;
+      el.style.color = '#e5e7eb';
+    }
+  }
+
+  function updateReadings(msg) {
+    if (msg.type === 'controller_status') return;
+    if (msg.ph === undefined && msg.ec === undefined) return;
+    setReading('r-ph',         msg.ph,         2, '');
+    setReading('r-ec',         msg.ec,         0, ' µS/cm');
+    setReading('r-water-temp', msg.water_temp,  1, '°F');
+    setReading('r-air-temp',   msg.air_temp,    1, '°F');
+    setReading('r-air-hum',    msg.air_hum,     0, '%');
+    document.getElementById('r-updated').textContent = msg._ts || '—';
+  }
+
+  async function triggerSensorRead() {
+    const btn = document.getElementById('read-now-btn');
+    btn.disabled = true;
+    btn.textContent = 'Reading…';
+    await fetch('/sensor_read', { method: 'POST' });
+    setTimeout(() => { btn.disabled = false; btn.textContent = 'Read Now'; }, 3500);
+  }
+
+  // ── Logging ───────────────────────────────────────────────────────────────
+  function appendToLog(logId, text, cssClass) {
+    const log = document.getElementById(logId);
+    if (!log) return;
+    const el = document.createElement('div');
+    el.className = 'log-entry ' + (cssClass || '');
+    el.innerHTML = text;
+    log.appendChild(el);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function clearLog(logId) {
+    const el = document.getElementById(logId);
+    if (el) el.innerHTML = '';
+  }
+
+  function formatMsg(msg) {
+    const ts = `<span class="ts">[${msg._ts || '??:??:??'}]</span> `;
+    const type = msg.type;
+    if (type === 'ui_event') {
+      const map = {
+        mqtt_connected:    'MQTT connected',
+        mqtt_disconnected: 'MQTT disconnected',
+        mqtt_error:        `MQTT error rc=${msg.rc}`,
+        batch_sent:        `Batch sent → ${msg.batch_id}`,
+        stream_connected:  'Log stream connected',
+        sensor_read_sent:  'Sensor read sent',
+      };
+      return { text: ts + (map[msg.state] || msg.state), cls: 'ui' };
+    }
+    if (type === 'batch_event') {
+      const cls = msg.state === 'completed' ? 'completed' : msg.state === 'aborted' ? 'aborted' : msg.state === 'accepted' ? 'accepted' : '';
+      return { text: `${ts}Batch [${msg.batch_id}] → <b>${msg.state}</b>${msg.reason ? ' (' + msg.reason + ')' : ''}`, cls };
+    }
+    if (type === 'batch_item_event') {
+      const ml = msg.requested_ml != null ? ` ${msg.requested_ml.toFixed(2)} ml` : '';
+      const extra = msg.state === 'post_delay' && msg.post_delay_ms ? ` (delay ${(msg.post_delay_ms/1000).toFixed(0)}s)` : '';
+      return { text: `${ts}&nbsp;&nbsp;[${msg.item_id || msg.index}] ${NUTRIENT_LABELS[msg.pump_id] || msg.pump_id} ${msg.cmd}${ml} → <b>${msg.state}</b>${extra}`, cls: msg.state };
+    }
+    if (type === 'pump_event')        return { text: `${ts}Pump [${msg.pump_id}] → ${msg.state}`, cls: msg.state };
+    if (type === 'controller_status') return { text: `${ts}ESP32 ${msg.state}${msg.uptime_sec != null ? ' (up ' + msg.uptime_sec + 's)' : ''}`, cls: 'status' };
+    if (type === 'batch_response')    return { text: `${ts}Batch response: ${msg.ok ? 'accepted' : 'rejected: ' + msg.reason}`, cls: msg.ok ? 'accepted' : 'failed' };
+    return { text: `${ts}${JSON.stringify(msg)}`, cls: '' };
+  }
+
+  function formatSensorMsg(msg) {
+    const ts = `<span class="ts">[${msg._ts || '??:??:??'}]</span> `;
+    if (msg.type === 'controller_status') {
+      return { text: `${ts}Sensor ESP32 ${msg.state}${msg.uptime_sec != null ? ' (up ' + msg.uptime_sec + 's)' : ''}`, cls: 'status' };
+    }
+    // Full sensor reading from status topic
+    if (msg.ph !== undefined || msg.ec !== undefined) {
+      const f = (v, d, u) => (v != null && v >= 0) ? v.toFixed(d) + u : '—';
+      const parts = [
+        `pH ${f(msg.ph, 2, '')}`,
+        `EC ${f(msg.ec, 0, ' µS')}`,
+        `H₂O ${f(msg.water_temp, 1, '°F')}`,
+        `Air ${f(msg.air_temp, 1, '°F')}`,
+        `RH ${f(msg.air_hum, 0, '%')}`,
+      ];
+      const anyError = [msg.ph, msg.ec, msg.water_temp, msg.air_temp, msg.air_hum].some(v => v != null && v < 0);
+      const rid = msg.request_id ? ` [${msg.request_id}]` : '';
+      return { text: `${ts}${parts.join('  ')}${rid}`, cls: anyError ? 'failed' : 'completed' };
+    }
+    // Per-sensor response or error event
+    if (msg.sensor_id) {
+      if (msg.status === 'ok') {
+        const val = msg.value !== undefined
+          ? msg.value
+          : (msg.air_temp !== undefined ? `${msg.air_temp.toFixed(1)}°F ${msg.air_hum.toFixed(0)}%` : '?');
+        return { text: `${ts}${msg.sensor_id} → <b>ok</b>: ${val}`, cls: 'completed' };
+      }
+      if (msg.status === 'error') {
+        return { text: `${ts}${msg.sensor_id} → <b>error</b>: ${msg.error || 'unknown'}`, cls: 'failed' };
+      }
+    }
+    return { text: `${ts}${JSON.stringify(msg)}`, cls: '' };
+  }
+
+  // ── SSE stream ────────────────────────────────────────────────────────────
+  const evtSource = new EventSource('/stream');
+  const mqttStatus = document.getElementById('mqtt-status');
+
+  evtSource.onmessage = function(e) {
+    const msg = JSON.parse(e.data);
+
+    // MQTT badge
+    if (msg.type === 'ui_event') {
+      if (msg.state === 'mqtt_connected')         { mqttStatus.textContent = 'MQTT: connected';    mqttStatus.className = 'connected'; }
+      else if (msg.state === 'mqtt_disconnected') { mqttStatus.textContent = 'MQTT: disconnected'; mqttStatus.className = 'disconnected'; }
+    }
+
+    // Dose/abort button state
+    if (msg.type === 'batch_event' && (msg.state === 'completed' || msg.state === 'aborted')) {
+      if (msg.batch_id === activeBatchId) {
+        activeBatchId = null;
+        document.getElementById('dose-btn').disabled = false;
+        document.getElementById('abort-btn').classList.remove('visible');
+      }
+    }
+
+    // Update sensor readings display
+    if (msg._topic && msg._topic.startsWith('esp32/sensors/status')) {
+      updateReadings(msg);
+    }
+
+    // Route to the right log
+    if (msg.type === 'ui_event') {
+      const { text, cls } = formatMsg(msg);
+      appendToLog('pump-log',   text, cls);
+      appendToLog('sensor-log', text, cls);
+    } else if (msg._topic && msg._topic.startsWith('esp32/sensors')) {
+      const { text, cls } = formatSensorMsg(msg);
+      appendToLog('sensor-log', text, cls);
+    } else {
+      const { text, cls } = formatMsg(msg);
+      appendToLog('pump-log', text, cls);
+    }
+  };
+
+  evtSource.onerror = function() {
+    mqttStatus.textContent = 'MQTT: stream error';
+    mqttStatus.className = 'disconnected';
+  };
 </script>
 
 </body>
