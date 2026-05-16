@@ -310,6 +310,31 @@ def sensor_read():
     return jsonify({"ok": True})
 
 
+@app.route("/sensor_cmd", methods=["POST"])
+@login_required
+def sensor_cmd():
+    data = request.json or {}
+    sensor_id = data.get("sensor_id", "").strip()
+    raw_cmd   = data.get("cmd", "").strip()
+    wait_ms   = int(data.get("wait_ms", 900))
+
+    if sensor_id not in {"ph", "ec"}:
+        return jsonify({"error": "sensor_id must be ph or ec"}), 400
+    if not raw_cmd:
+        return jsonify({"error": "cmd is required"}), 400
+
+    payload = {
+        "v": 1,
+        "cmd": "raw",
+        "sensor_id": sensor_id,
+        "raw_cmd": raw_cmd,
+        "wait_ms": wait_ms,
+        "request_id": "ui-{}".format(uuid4().hex[:8]),
+    }
+    _mqtt.publish(SENSOR_CMD_TOPIC, json.dumps(payload))
+    return jsonify({"ok": True})
+
+
 @app.route("/command", methods=["POST"])
 @login_required
 def command():
