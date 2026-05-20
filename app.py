@@ -1,6 +1,7 @@
 import json
 import queue
 import threading
+from collections import deque
 from datetime import datetime
 from uuid import uuid4
 
@@ -9,6 +10,8 @@ import functools
 import secrets
 
 from flask import Flask, Response, jsonify, make_response, redirect, render_template, request, url_for
+
+from history import log_dosing_event, parse_dose_ml, query_history
 
 from config import (
     CALMAG_ML_PER_GAL,
@@ -53,14 +56,17 @@ def login_required(f):
 
 # ── SSE broadcast ─────────────────────────────────────────────────────────────
 # Each connected browser gets its own queue; broadcast pushes to all of them.
+# _event_buffer holds the last 100 events so new connections can replay them.
 _sse_clients: list[queue.Queue] = []
 _sse_lock = threading.Lock()
 _mqtt_connected = False
+_event_buffer: deque = deque(maxlen=100)
 
 
 def broadcast(data: dict) -> None:
     msg = "data: {}\n\n".format(json.dumps(data))
     with _sse_lock:
+        _event_buffer.append(msg)
         dead = []
         for q in _sse_clients:
             try:
@@ -278,7 +284,22 @@ def dose():
     payload = build_batch(doses, system_id)
     _mqtt.publish(MQTT_CMD_TOPIC, json.dumps(payload))
     broadcast({"type": "ui_event", "state": "batch_sent", "batch_id": payload["batch_id"], "ts": _ts()})
+    system = next(s for s in SYSTEMS if s["id"] == system_id)
+    pumps = system["pumps"]
+    for key, pump_id in pumps.items():
+        if key in doses:
+            log_dosing_event(
+                trigger='grow_ui', pump_id=pump_id, volume_ml=doses[key],
+                grow_stage=stage, strength_factor=strength,
+                batch_id=payload["batch_id"],
+            )
     return jsonify({"ok": True, "batch_id": payload["batch_id"], "doses": doses})
+
+
+@app.route("/history")
+@login_required
+def history():
+    return jsonify(query_history())
 
 
 @app.route("/abort", methods=["POST"])
@@ -357,10 +378,11 @@ def command():
 
     if len(pump_ids) > 1 and is_motor_dose:
         # Batch sequential execution for multi-pump motor commands
+        batch_id = "manual-{}".format(uuid4().hex[:8])
         payload = {
             "v": 1,
             "type": "pump_batch",
-            "batch_id": "manual-{}".format(uuid4().hex[:8]),
+            "batch_id": batch_id,
             "options": {"stop_on_error": False},
             "commands": [
                 {"item_id": "step-{}".format(i + 1), "pump_id": pid, "cmd": cmd}
@@ -369,6 +391,10 @@ def command():
         }
         _mqtt.publish(MQTT_CMD_TOPIC, json.dumps(payload))
         broadcast({"type": "ui_event", "state": "batch_sent", "batch_id": payload["batch_id"], "ts": _ts()})
+        ml = parse_dose_ml(cmd)
+        if ml is not None:
+            for pid in pump_ids:
+                log_dosing_event(trigger='grow_ui_manual', pump_id=pid, volume_ml=ml, batch_id=batch_id)
     else:
         # Individual commands — queue if motor is busy
         for pid in pump_ids:
@@ -380,6 +406,10 @@ def command():
                 "options": {"queue_if_busy": True},
             }
             _mqtt.publish(MQTT_CMD_TOPIC, json.dumps(payload))
+        ml = parse_dose_ml(cmd)
+        if ml is not None:
+            for pid in pump_ids:
+                log_dosing_event(trigger='grow_ui_manual', pump_id=pid, volume_ml=ml)
 
     return jsonify({"ok": True, "pump_ids": pump_ids, "cmd": cmd})
 
@@ -402,6 +432,11 @@ def stream():
             yield "data: {}\n\n".format(
                 json.dumps({"type": "ui_event", "state": mqtt_state, "ts": _ts()})
             )
+            # Replay recent events so the browser catches up after a refresh
+            with _sse_lock:
+                buffered = list(_event_buffer)
+            for past_msg in buffered:
+                yield past_msg
             while True:
                 try:
                     yield client_q.get(timeout=25)
