@@ -233,6 +233,34 @@
     .log-entry.accepted   { color: #94a3b8; }
     .log-entry.status     { color: #4b5563; }
 
+    /* ── History ── */
+    .history-main {
+      max-width: 1100px;
+      margin: 1.5rem auto;
+      padding: 0 1rem;
+    }
+    .hist-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+    }
+    .hist-table th {
+      text-align: left;
+      padding: 0.4rem 0.6rem;
+      color: #6b7280;
+      font-weight: 500;
+      border-bottom: 1px solid #374151;
+      white-space: nowrap;
+    }
+    .hist-table td {
+      padding: 0.35rem 0.6rem;
+      border-bottom: 1px solid #1f2937;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    .hist-table tr:hover td { background: #1a2333; }
+    .hist-null { color: #4b5563; }
+
     @media (max-width: 680px) {
       .pumps-main, .sensors-main { grid-template-columns: 1fr; }
     }
@@ -253,6 +281,7 @@
 <div class="tab-bar">
   <button class="tab-btn active" onclick="switchTab('pumps', this)">Pumps</button>
   <button class="tab-btn" onclick="switchTab('sensors', this)">Sensors</button>
+  <button class="tab-btn" onclick="switchTab('history', this)">History</button>
 </div>
 
 <!-- ── Pumps tab ─────────────────────────────────────────────────────────── -->
@@ -289,6 +318,28 @@
       <div class="field">
         <label>Strength Factor</label>
         <input type="number" id="strength" value="{{ default_strength }}" min="0.01" max="1.0" step="0.01">
+      </div>
+
+      <div class="field">
+        <label>Mixing Delays (seconds)</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.4rem 0.8rem;margin-top:0.3rem;">
+          <div>
+            <div style="font-size:0.75rem;color:#9ca3af;margin-bottom:0.2rem;">Cal-Mag</div>
+            <input type="number" id="delay-calmag" value="{{ delays.calmag }}" min="0" step="60" style="width:100%;">
+          </div>
+          <div>
+            <div style="font-size:0.75rem;color:#9ca3af;margin-bottom:0.2rem;">Micro</div>
+            <input type="number" id="delay-micro" value="{{ delays.micro }}" min="0" step="30" style="width:100%;">
+          </div>
+          <div>
+            <div style="font-size:0.75rem;color:#9ca3af;margin-bottom:0.2rem;">Gro</div>
+            <input type="number" id="delay-gro" value="{{ delays.gro }}" min="0" step="30" style="width:100%;">
+          </div>
+          <div>
+            <div style="font-size:0.75rem;color:#9ca3af;margin-bottom:0.2rem;">Bloom</div>
+            <input type="number" id="delay-bloom" value="{{ delays.bloom }}" min="0" step="30" style="width:100%;">
+          </div>
+        </div>
       </div>
 
       <div class="actions">
@@ -418,6 +469,60 @@
   </div>
 </div>
 
+<!-- ── History tab ───────────────────────────────────────────────────────── -->
+<div id="history-tab" class="tab-panel">
+  <div class="history-main">
+    <div style="display:flex;justify-content:flex-end;margin-bottom:1rem">
+      <button class="btn-read-now" style="font-size:0.8rem;padding:0.35rem 0.9rem" onclick="loadHistory()">Refresh</button>
+    </div>
+
+    <div class="card" style="margin-bottom:1.2rem">
+      <div class="card-title">Recent Sensor Readings</div>
+      <div style="overflow-x:auto">
+        <table class="hist-table">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>pH</th>
+              <th>EC (µS/cm)</th>
+              <th>Water °F</th>
+              <th>Air °F</th>
+              <th>Humidity %</th>
+            </tr>
+          </thead>
+          <tbody id="sensor-hist-body">
+            <tr><td colspan="6" class="hist-null" style="text-align:center;padding:1rem">Click the History tab to load</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Recent Dosing Events</div>
+      <div style="overflow-x:auto">
+        <table class="hist-table">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Trigger</th>
+              <th>Pump</th>
+              <th>Volume (ml)</th>
+              <th>Stage</th>
+              <th>Strength</th>
+              <th>pH Before</th>
+              <th>Batch ID</th>
+            </tr>
+          </thead>
+          <tbody id="dosing-hist-body">
+            <tr><td colspan="8" class="hist-null" style="text-align:center;padding:1rem">Click the History tab to load</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+
 <script>
   const DELAYS = {{ delays | tojson }};
   const NUTRIENT_LABELS = {calmag:'Cal-Mag', micro:'Micro', gro:'Gro', bloom:'Bloom'};
@@ -429,6 +534,7 @@
     document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
     btn.classList.add('active');
     document.getElementById(name + '-tab').classList.add('active');
+    if (name === 'history') loadHistory();
   }
 
   // ── System selector ───────────────────────────────────────────────────────
@@ -449,9 +555,15 @@
     const gallons  = parseFloat(document.getElementById('gallons').value);
     const stage    = document.getElementById('stage').value;
     const strength = parseFloat(document.getElementById('strength').value);
+    const delays = {
+      calmag: parseInt(document.getElementById('delay-calmag').value) || 0,
+      micro:  parseInt(document.getElementById('delay-micro').value)  || 0,
+      gro:    parseInt(document.getElementById('delay-gro').value)    || 0,
+      bloom:  parseInt(document.getElementById('delay-bloom').value)  || 0,
+    };
     if (isNaN(gallons) || gallons <= 0) { alert('Enter a valid gallons value.'); return null; }
     if (isNaN(strength) || strength <= 0 || strength > 1) { alert('Strength must be between 0 and 1.'); return null; }
-    return { gallons, stage, strength, system_id: getSystemId() };
+    return { gallons, stage, strength, delays, system_id: getSystemId() };
   }
 
   async function previewDose() {
@@ -480,7 +592,7 @@
     if (data.error) { alert(data.error); btn.disabled = false; return; }
     activeBatchId = data.batch_id;
     document.getElementById('abort-btn').classList.add('visible');
-    renderPreview({ doses: data.doses, total_ml: Object.values(data.doses).reduce((a, b) => a + b, 0), delays: DELAYS });
+    renderPreview({ doses: data.doses, total_ml: Object.values(data.doses).reduce((a, b) => a + b, 0), delays: data.delays });
   }
 
   async function abortBatch() {
@@ -489,7 +601,7 @@
 
   // ── Pump manual control ───────────────────────────────────────────────────
   function togglePump(btn) { btn.classList.toggle('selected'); }
-  function clearPumpSelection() { document.querySelectorAll('.pump-btn.selected').forEach(b => b.classList.remove('selected')); }
+  function clearPumpSelection() { document.querySelectorAll('#pumps-tab .pump-btn.selected').forEach(b => b.classList.remove('selected')); }
 
   function selectCmd(btn) {
     document.querySelectorAll('.cmd-btn').forEach(b => b.classList.remove('active'));
@@ -511,7 +623,7 @@
   }
 
   async function sendCommand() {
-    const selected = [...document.querySelectorAll('.pump-btn.selected')].map(b => b.dataset.id);
+    const selected = [...document.querySelectorAll('#pumps-tab .pump-btn.selected')].map(b => b.dataset.id);
     if (!selected.length) { alert('Select at least one pump.'); return; }
     const cmd = buildCmd();
     if (!cmd) return;
@@ -567,6 +679,58 @@
     await fetch('/sensor_read', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 
     setTimeout(() => { btnSelected.disabled = false; btnAll.disabled = false; }, 3500);
+  }
+
+  // ── History ───────────────────────────────────────────────────────────────
+  async function loadHistory() {
+    const resp = await fetch('/history');
+    const data = await resp.json();
+    renderSensorHistory(data.sensor_readings || []);
+    renderDosingHistory(data.dosing_events   || []);
+  }
+
+  function fmtTs(unix) {
+    if (!unix) return '—';
+    return new Date(unix * 1000).toLocaleString();
+  }
+
+  function fmtNum(v, decimals) {
+    if (v == null) return '<span class="hist-null">—</span>';
+    return parseFloat(v).toFixed(decimals);
+  }
+
+  function renderSensorHistory(rows) {
+    const tbody = document.getElementById('sensor-hist-body');
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="hist-null" style="text-align:center;padding:1rem">No records yet</td></tr>';
+      return;
+    }
+    tbody.innerHTML = rows.map(r => `<tr>
+      <td>${fmtTs(r.ts)}</td>
+      <td>${fmtNum(r.ph, 2)}</td>
+      <td>${fmtNum(r.ec, 0)}</td>
+      <td>${fmtNum(r.water_temp_f, 1)}</td>
+      <td>${fmtNum(r.air_temp_f, 1)}</td>
+      <td>${fmtNum(r.air_humidity, 0)}</td>
+    </tr>`).join('');
+  }
+
+  function renderDosingHistory(rows) {
+    const tbody = document.getElementById('dosing-hist-body');
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="8" class="hist-null" style="text-align:center;padding:1rem">No records yet</td></tr>';
+      return;
+    }
+    tbody.innerHTML = rows.map(r => `<tr>
+      <td>${fmtTs(r.ts)}</td>
+      <td>${r.trigger}</td>
+      <td>${r.pump_id}</td>
+      <td>${fmtNum(r.volume_ml, 2)}</td>
+      <td>${r.grow_stage || '<span class="hist-null">—</span>'}</td>
+      <td>${r.strength_factor != null ? fmtNum(r.strength_factor, 2) : '<span class="hist-null">—</span>'}</td>
+      <td>${r.ph_before != null ? fmtNum(r.ph_before, 2) : '<span class="hist-null">—</span>'}</td>
+      <td style="font-size:0.75rem;color:#6b7280">${r.batch_id || '<span class="hist-null">—</span>'}</td>
+    </tr>`).join('');
   }
 
   // ── Logging ───────────────────────────────────────────────────────────────

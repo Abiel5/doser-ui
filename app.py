@@ -139,7 +139,7 @@ def compute_doses(gallons: float, stage: str, strength: float) -> dict:
     }
 
 
-def build_batch(doses: dict, system_id: str) -> dict:
+def build_batch(doses: dict, system_id: str, delays: dict) -> dict:
     system = next(s for s in SYSTEMS if s["id"] == system_id)
     pumps = system["pumps"]
     return {
@@ -152,32 +152,32 @@ def build_batch(doses: dict, system_id: str) -> dict:
                 "item_id": "step-1",
                 "pump_id": pumps["calmag"],
                 "cmd": "D,{:.2f}".format(doses["calmag"]),
-                "post_delay_ms": DELAY_CALMAG_SEC * 1000,
+                "post_delay_ms": delays["calmag"] * 1000,
             },
             {
                 "item_id": "step-2",
                 "pump_id": pumps["micro"],
                 "cmd": "D,{:.2f}".format(doses["micro"]),
-                "post_delay_ms": DELAY_MICRO_SEC * 1000,
+                "post_delay_ms": delays["micro"] * 1000,
             },
             {
                 "item_id": "step-3",
                 "pump_id": pumps["gro"],
                 "cmd": "D,{:.2f}".format(doses["gro"]),
-                "post_delay_ms": DELAY_GRO_SEC * 1000,
+                "post_delay_ms": delays["gro"] * 1000,
             },
             {
                 "item_id": "step-4",
                 "pump_id": pumps["bloom"],
                 "cmd": "D,{:.2f}".format(doses["bloom"]),
-                "post_delay_ms": DELAY_BLOOM_SEC * 1000,
+                "post_delay_ms": delays["bloom"] * 1000,
             },
         ],
     }
 
 
 def _parse_form(data: dict) -> tuple:
-    """Return (gallons, stage, strength, system_id) or raise ValueError."""
+    """Return (gallons, stage, strength, system_id, delays) or raise ValueError."""
     gallons   = float(data["gallons"])
     stage     = data["stage"]
     strength  = float(data.get("strength", DEFAULT_STRENGTH))
@@ -192,7 +192,15 @@ def _parse_form(data: dict) -> tuple:
     if not any(s["id"] == system_id for s in SYSTEMS):
         raise ValueError("unknown system_id: {}".format(system_id))
 
-    return gallons, stage, strength, system_id
+    d = data.get("delays", {})
+    delays = {
+        "calmag": max(0, int(d.get("calmag", DELAY_CALMAG_SEC))),
+        "micro":  max(0, int(d.get("micro",  DELAY_MICRO_SEC))),
+        "gro":    max(0, int(d.get("gro",    DELAY_GRO_SEC))),
+        "bloom":  max(0, int(d.get("bloom",  DELAY_BLOOM_SEC))),
+    }
+
+    return gallons, stage, strength, system_id, delays
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────
@@ -255,7 +263,7 @@ def index():
 @login_required
 def preview():
     try:
-        gallons, stage, strength, _ = _parse_form(request.json)
+        gallons, stage, strength, _, delays = _parse_form(request.json)
     except (KeyError, ValueError) as e:
         return jsonify({"error": str(e)}), 400
 
@@ -263,12 +271,7 @@ def preview():
     return jsonify({
         "doses": doses,
         "total_ml": round(sum(doses.values()), 2),
-        "delays": {
-            "calmag": DELAY_CALMAG_SEC,
-            "micro":  DELAY_MICRO_SEC,
-            "gro":    DELAY_GRO_SEC,
-            "bloom":  DELAY_BLOOM_SEC,
-        },
+        "delays": delays,
     })
 
 
@@ -276,12 +279,12 @@ def preview():
 @login_required
 def dose():
     try:
-        gallons, stage, strength, system_id = _parse_form(request.json)
+        gallons, stage, strength, system_id, delays = _parse_form(request.json)
     except (KeyError, ValueError) as e:
         return jsonify({"error": str(e)}), 400
 
     doses = compute_doses(gallons, stage, strength)
-    payload = build_batch(doses, system_id)
+    payload = build_batch(doses, system_id, delays)
     _mqtt.publish(MQTT_CMD_TOPIC, json.dumps(payload))
     broadcast({"type": "ui_event", "state": "batch_sent", "batch_id": payload["batch_id"], "ts": _ts()})
     system = next(s for s in SYSTEMS if s["id"] == system_id)
@@ -293,7 +296,7 @@ def dose():
                 grow_stage=stage, strength_factor=strength,
                 batch_id=payload["batch_id"],
             )
-    return jsonify({"ok": True, "batch_id": payload["batch_id"], "doses": doses})
+    return jsonify({"ok": True, "batch_id": payload["batch_id"], "doses": doses, "delays": delays})
 
 
 @app.route("/history")
