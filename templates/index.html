@@ -627,6 +627,11 @@
     if (!selected.length) { alert('Select at least one pump.'); return; }
     const cmd = buildCmd();
     if (!cmd) return;
+    const isPh = selected.some(id => id === 'phup' || id === 'phdown');
+    if (isPh && cmd.startsWith('D,')) {
+      const ml = parseFloat(cmd.slice(2));
+      if (ml > 20 && !confirm(`Dose ${ml.toFixed(2)} ml of pH ${selected.includes('phup') ? 'Up' : 'Down'}? This is more than 20 ml.`)) return;
+    }
     const resp = await fetch('/command', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pump_ids: selected, cmd }) });
     const data = await resp.json();
     if (data.error) alert(data.error);
